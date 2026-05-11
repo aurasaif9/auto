@@ -20,6 +20,8 @@ API_URL     = "https://auraxsaif.top/api/wingo/1m.php"
 STATE_FILE  = "/tmp/wingo_state.json"
 BIG_IMAGE   = os.path.join(os.path.dirname(__file__), "big_image.jpg")
 SMALL_IMAGE = os.path.join(os.path.dirname(__file__), "small_image.png")
+WIN_STICKER  = "CAACAgUAAxkBAAMZagHrqh-1xP1c5Ch0eEsX0Ia4rQoAAqQaAAI4ZQlVFQAB7e-5iBcyOwQ"
+LOSS_STICKER = "CAACAgUAAxkBAAMaagHrr1xWoUqfzXv5zcxGemgMSUsAAuAeAAJ1FQhVCo9WKmwYFIw7BA"
 B_POOL      = [5, 6, 7, 8, 9]
 S_POOL      = [0, 1, 2, 3, 4]
 
@@ -415,6 +417,13 @@ def tg_msg(text):
         return r.json()
     except Exception as e: return {"ok":False,"description":str(e)}
 
+def tg_sticker(file_id):
+    try:
+        r=requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendSticker",
+            data={"chat_id":CHANNEL_ID,"sticker":file_id},timeout=15)
+        return r.json()
+    except Exception as e: return {"ok":False,"description":str(e)}
+
 def send_prediction(period_label, pred, nums, conf):
     jack  = ',  '.join(str(n) for n in nums)
     bar   = '🟩'*(conf//10)+'⬜'*(10-conf//10)
@@ -458,6 +467,11 @@ def send_result(period_label, prediction, actual_num, numbers):
     )
     res=tg_msg(text)
     ok=res.get('ok',False)
+
+    # Send win/loss sticker AFTER the result text
+    sticker_id = WIN_STICKER if (s_ok or n_hit) else LOSS_STICKER
+    tg_sticker(sticker_id)
+
     print(f"  📊 RESULT → {rt} | {asize}({actual_num}) | JP={n_hit} | TG={ok}")
     return ok,s_ok,n_hit
 
@@ -546,10 +560,10 @@ def run():
     # API call with retry (handles DNS / temporary network failures on Render)
     lst = None
     last_err = None
-    for attempt in range(1, 4):
+    for attempt in range(1, 3):
         try:
             resp = requests.get(
-                API_URL, timeout=15,
+                API_URL, timeout=8,
                 headers={"Cache-Control": "no-cache", "Pragma": "no-cache",
                          "User-Agent": "Mozilla/5.0 AuraXBot"}
             )
@@ -558,10 +572,10 @@ def run():
             break
         except Exception as e:
             last_err = e
-            print(f"⚠️ API attempt {attempt}/3 failed: {e}")
-            time.sleep(2 * attempt)  # 2s, 4s, 6s backoff
+            print(f"⚠️ API attempt {attempt}/2 failed: {e}")
+            time.sleep(1)
     if lst is None:
-        print(f"❌ API Error after 3 retries: {last_err}")
+        print(f"❌ API Error after retries: {last_err}")
         return
 
     # Completed periods

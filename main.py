@@ -39,8 +39,10 @@ def run_http_server():
 
 
 # ====== BACKGROUND WORKER ======
-# Render free plan = 1-minute Wingo period, so we tick every 60s.
-TICK_SECONDS = 60
+# Wingo 1M period = 60s. We poll every 5s so prediction/result is sent
+# within seconds of a new period becoming available (no more 1-min lag).
+# pred_lock_id inside wingo_bot already prevents duplicate sends.
+TICK_SECONDS = 5
 
 
 def run_worker():
@@ -56,13 +58,12 @@ def run_worker():
             consecutive_errors += 1
             print(f"[worker] tick error #{consecutive_errors}: {e}", flush=True)
             traceback.print_exc()
-            # Back off slightly on repeated failures, but never exit
             if consecutive_errors >= 5:
-                print("[worker] many failures — sleeping 30s extra", flush=True)
-                time.sleep(30)
+                print("[worker] many failures — sleeping 15s extra", flush=True)
+                time.sleep(15)
 
         elapsed = time.time() - start
-        sleep_for = max(5, TICK_SECONDS - elapsed)
+        sleep_for = max(1, TICK_SECONDS - elapsed)
         time.sleep(sleep_for)
 
 
